@@ -21,11 +21,7 @@ function convertAlchemyDate(dateString, timeZone, isEndTime = false) {
         // ✅ Adjust to the correct time zone, preserving the local time
         date = date.setZone(timeZone, { keepLocalTime: false });
 
-        // ✅ Fix end time issue: Ensure it's not identical to StartUse
-        if (isEndTime) {
-            date = date.minus({ minutes: 30 }); // Adjusts end time correctly
-        }
-
+        
         return date.toISO();
     } catch (error) {
         console.error("🔴 Date conversion error:", error.message);
