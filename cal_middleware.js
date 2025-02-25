@@ -1,7 +1,7 @@
 import express from "express";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
-import { DateTime } from "luxon"; // ✅ Import Luxon for date handling
+import { DateTime } from "luxon"; // ✅ Import Luxon for time handling
 
 dotenv.config();
 
@@ -11,14 +11,17 @@ app.use(express.json());
 // ✅ Function to Convert Alchemy's Date Format ("MMM dd yyyy hh:mm a") to ISO Format
 function convertAlchemyDate(dateString, timeZone) {
     try {
-        // ✅ Parse "Feb 25 2025 09:00 PM" using Luxon
-        const date = DateTime.fromFormat(dateString, "MMM dd yyyy hh:mm a", { zone: timeZone });
+        // ✅ Parse "Feb 25 2025 09:00 PM" in the given time zone
+        let date = DateTime.fromFormat(dateString, "MMM dd yyyy hh:mm a", { zone: timeZone });
 
         if (!date.isValid) {
             throw new Error(`Invalid date format received: ${dateString}`);
         }
 
-        return date.toISO(); // ✅ Converts to "2025-02-25T21:00:00-05:00" (ISO Format)
+        // ✅ Keep the local time but correctly apply the timezone
+        date = date.setZone(timeZone, { keepLocalTime: true });
+
+        return date.toISO(); // ✅ Converts to correct ISO format
     } catch (error) {
         console.error("🔴 Date conversion error:", error.message);
         return null;
@@ -102,34 +105,4 @@ app.post("/create-event", async (req, res) => {
             reminders: req.body.reminders || { useDefault: true }
         };
 
-        console.log("🟢 Final Event Payload:", JSON.stringify(eventBody, null, 2));
-
-        const calendarApiUrl = `https://www.googleapis.com/calendar/v3/calendars/${req.body.calendarId}/events`;
-
-        const response = await fetch(calendarApiUrl, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${accessToken}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(eventBody)
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(`Error creating event: ${data.error}, Details: ${JSON.stringify(data)}`);
-        }
-
-        res.status(200).json({ success: true, event: data });
-    } catch (error) {
-        console.error("🔴 Error creating event:", error.message);
-        res.status(500).json({ error: "Failed to create event", details: error.message });
-    }
-});
-
-// ✅ Fix Port Binding for Render
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, "0.0.0.0", () => {
-    console.log(`✅ Middleware running on port ${PORT}`);
-});
+        console.log("🟢 Final Event Payload:", 
