@@ -117,4 +117,12 @@ app.post("/create-event", async (req, res) => {
         res.status(200).json({ success: true, event: data });
     } catch (error) {
         console.error("Error creating event:", error.message);
-        res.status(500).json({ error: "Failed to cr
+        res.status(500).json({ error: "Failed to create event", details: error.message });
+    }
+});
+
+// ✅ Fix Port Binding for Render
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Middleware running on port ${PORT}`);
+});
