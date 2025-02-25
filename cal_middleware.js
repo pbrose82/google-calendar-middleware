@@ -1,24 +1,23 @@
 import express from "express";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
-import { DateTime } from "luxon"; // ✅ Import Luxon for correct timezone handling
+import { DateTime } from "luxon"; // ✅ Import Luxon for date handling
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
 
-// ✅ Function to Convert Date to ISO 8601 Format With Correct Timezone
+// ✅ Function to Convert Date to "YYYY-MM-DDTHH:mm:ss" Without Timezone Offset
 function convertToISO(dateString, timeZone) {
     try {
-        // ✅ Convert input date using the correct timezone
         const date = DateTime.fromFormat(dateString, "LLL dd yyyy hh:mm a", { zone: timeZone });
 
         if (!date.isValid) {
             throw new Error(`Invalid date format received: ${dateString}`);
         }
 
-        return date.toISO(); // ✅ Returns "YYYY-MM-DDTHH:mm:ss-XX:XX" with correct timezone
+        return date.toFormat("yyyy-MM-dd'T'HH:mm:ss"); // ✅ Removes timezone offset for Java compatibility
     } catch (error) {
         console.error("Date conversion error:", error.message);
         return null;
@@ -86,11 +85,11 @@ app.post("/create-event", async (req, res) => {
             location: req.body.location || "No Location Provided",
             description: req.body.description || "No Description",
             start: {
-                dateTime: formattedStartUse, // ✅ Converted here with timezone applied
+                dateTime: formattedStartUse, // ✅ Converted here, no timezone offset
                 timeZone: timeZone
             },
             end: {
-                dateTime: formattedEndUse, // ✅ Converted here with timezone applied
+                dateTime: formattedEndUse, // ✅ Converted here, no timezone offset
                 timeZone: timeZone
             },
             attendees: req.body.attendees || [],
