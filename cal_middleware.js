@@ -1,27 +1,24 @@
 import express from "express";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
+import { DateTime } from "luxon"; // ✅ Import Luxon for correct timezone handling
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
 
-// ✅ Function to Convert Date to Correct ISO Format While Preserving Timezone
-function convertToISO(dateString) {
+// ✅ Function to Convert Date to ISO 8601 Format With Correct Timezone
+function convertToISO(dateString, timeZone) {
     try {
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) {
+        // ✅ Convert input date using the correct timezone
+        const date = DateTime.fromFormat(dateString, "LLL dd yyyy hh:mm a", { zone: timeZone });
+
+        if (!date.isValid) {
             throw new Error(`Invalid date format received: ${dateString}`);
         }
 
-        // Format as "YYYY-MM-DDTHH:mm:ss-XX:XX" while preserving timezone offset
-        const offset = -date.getTimezoneOffset(); // Offset in minutes
-        const sign = offset >= 0 ? "+" : "-";
-        const hoursOffset = String(Math.floor(Math.abs(offset) / 60)).padStart(2, "0");
-        const minutesOffset = String(Math.abs(offset) % 60).padStart(2, "0");
-
-        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:${String(date.getSeconds()).padStart(2, "0")}${sign}${hoursOffset}:${minutesOffset}`;
+        return date.toISO(); // ✅ Returns "YYYY-MM-DDTHH:mm:ss-XX:XX" with correct timezone
     } catch (error) {
         console.error("Date conversion error:", error.message);
         return null;
@@ -72,9 +69,12 @@ app.post("/create-event", async (req, res) => {
     }
 
     try {
+        // ✅ Use correct timezone (default to America/New_York)
+        const timeZone = req.body.timeZone || "America/New_York";
+
         // ✅ Convert StartUse and EndUse to correct format inside the middleware
-        const formattedStartUse = convertToISO(req.body.StartUse);
-        const formattedEndUse = convertToISO(req.body.EndUse);
+        const formattedStartUse = convertToISO(req.body.StartUse, timeZone);
+        const formattedEndUse = convertToISO(req.body.EndUse, timeZone);
 
         if (!formattedStartUse || !formattedEndUse) {
             return res.status(400).json({ error: "Invalid date format for StartUse or EndUse" });
@@ -86,12 +86,12 @@ app.post("/create-event", async (req, res) => {
             location: req.body.location || "No Location Provided",
             description: req.body.description || "No Description",
             start: {
-                dateTime: formattedStartUse, // ✅ Converted here
-                timeZone: req.body.timeZone || "America/New_York"
+                dateTime: formattedStartUse, // ✅ Converted here with timezone applied
+                timeZone: timeZone
             },
             end: {
-                dateTime: formattedEndUse, // ✅ Converted here
-                timeZone: req.body.timeZone || "America/New_York"
+                dateTime: formattedEndUse, // ✅ Converted here with timezone applied
+                timeZone: timeZone
             },
             attendees: req.body.attendees || [],
             reminders: req.body.reminders || { useDefault: true }
