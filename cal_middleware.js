@@ -11,13 +11,17 @@ app.use(express.json());
 // ✅ Function to Convert Date to "YYYY-MM-DDTHH:mm:ss" Without Timezone Offset
 function convertToISO(dateString, timeZone) {
     try {
-        const date = DateTime.fromFormat(dateString, "LLL dd yyyy hh:mm a", { zone: timeZone });
+        // ✅ Remove 'Z' or timezone offset if present before parsing
+        let cleanDateString = dateString.replace(/Z$/, "").replace(/([-+]\d{2}:\d{2})$/, "");
+
+        // ✅ Convert input date from "MMM dd yyyy hh:mm a" to simple string
+        const date = DateTime.fromFormat(cleanDateString, "MMM dd yyyy hh:mm a", { zone: timeZone });
 
         if (!date.isValid) {
             throw new Error(`Invalid date format received: ${dateString}`);
         }
 
-        return date.toFormat("yyyy-MM-dd'T'HH:mm:ss"); // ✅ Removes timezone offset for Java compatibility
+        return date.toFormat("yyyy-MM-dd'T'HH:mm:ss"); // ✅ Returns a simple String without ZonedDateTime
     } catch (error) {
         console.error("Date conversion error:", error.message);
         return null;
@@ -62,6 +66,8 @@ async function getAccessToken() {
 
 // ✅ Google Calendar Event Creation Endpoint
 app.post("/create-event", async (req, res) => {
+    console.log("🔵 Received request from Alchemy:", JSON.stringify(req.body, null, 2)); // ✅ Log full request payload
+
     const accessToken = await getAccessToken();
     if (!accessToken) {
         return res.status(500).json({ error: "Failed to obtain access token" });
@@ -71,9 +77,17 @@ app.post("/create-event", async (req, res) => {
         // ✅ Use correct timezone (default to America/New_York)
         const timeZone = req.body.timeZone || "America/New_York";
 
+        // ✅ Log the raw StartUse and EndUse before conversion
+        console.log("🔵 Raw StartUse from Alchemy:", req.body.StartUse);
+        console.log("🔵 Raw EndUse from Alchemy:", req.body.EndUse);
+
         // ✅ Convert StartUse and EndUse to correct format inside the middleware
         const formattedStartUse = convertToISO(req.body.StartUse, timeZone);
         const formattedEndUse = convertToISO(req.body.EndUse, timeZone);
+
+        // ✅ Log the formatted dates before sending to Google Calendar
+        console.log("🟢 Formatted StartUse:", formattedStartUse);
+        console.log("🟢 Formatted EndUse:", formattedEndUse);
 
         if (!formattedStartUse || !formattedEndUse) {
             return res.status(400).json({ error: "Invalid date format for StartUse or EndUse" });
@@ -96,6 +110,8 @@ app.post("/create-event", async (req, res) => {
             reminders: req.body.reminders || { useDefault: true }
         };
 
+        console.log("🟢 Final Event Payload:", JSON.stringify(eventBody, null, 2));
+
         const calendarApiUrl = `https://www.googleapis.com/calendar/v3/calendars/${req.body.calendarId}/events`;
 
         const response = await fetch(calendarApiUrl, {
@@ -115,7 +131,7 @@ app.post("/create-event", async (req, res) => {
 
         res.status(200).json({ success: true, event: data });
     } catch (error) {
-        console.error("Error creating event:", error.message);
+        console.error("🔴 Error creating event:", error.message);
         res.status(500).json({ error: "Failed to create event", details: error.message });
     }
 });
