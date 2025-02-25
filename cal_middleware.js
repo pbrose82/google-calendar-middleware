@@ -7,10 +7,13 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-// ✅ Function to convert date format to ISO 8601
+// ✅ Function to Convert Date to ISO 8601 Format
 function convertToISO(dateString) {
     const date = new Date(dateString);
-    return date.toISOString(); // Converts to "YYYY-MM-DDTHH:MM:SS.sssZ" format
+    if (isNaN(date.getTime())) {
+        throw new Error(`Invalid date format: ${dateString}`);
+    }
+    return date.toISOString(); // Converts to "YYYY-MM-DDTHH:MM:SS.sssZ"
 }
 
 // ✅ Health Check Route
@@ -56,27 +59,30 @@ app.post("/create-event", async (req, res) => {
         return res.status(500).json({ error: "Failed to obtain access token" });
     }
 
-    // ✅ Use StartUse and EndUse instead of start.dateTime and end.dateTime
-    const eventBody = {
-        calendarId: req.body.calendarId,
-        summary: req.body.summary,
-        location: req.body.location,
-        description: req.body.description,
-        start: {
-            dateTime: convertToISO(req.body.StartUse), // ✅ Convert StartUse to ISO format
-            timeZone: req.body.timeZone || "America/New_York" // ✅ Default to NY timezone
-        },
-        end: {
-            dateTime: convertToISO(req.body.EndUse), // ✅ Convert EndUse to ISO format
-            timeZone: req.body.timeZone || "America/New_York"
-        },
-        attendees: req.body.attendees,
-        reminders: req.body.reminders
-    };
-
-    const calendarApiUrl = `https://www.googleapis.com/calendar/v3/calendars/${req.body.calendarId}/events`;
-
     try {
+        // ✅ Convert StartUse and EndUse to ISO format inside the middleware
+        const formattedStartUse = convertToISO(req.body.StartUse);
+        const formattedEndUse = convertToISO(req.body.EndUse);
+
+        const eventBody = {
+            calendarId: req.body.calendarId,
+            summary: req.body.summary || "Default Event Name",
+            location: req.body.location || "No Location Provided",
+            description: req.body.description || "No Description",
+            start: {
+                dateTime: formattedStartUse, // ✅ Converted here
+                timeZone: req.body.timeZone || "America/New_York"
+            },
+            end: {
+                dateTime: formattedEndUse, // ✅ Converted here
+                timeZone: req.body.timeZone || "America/New_York"
+            },
+            attendees: req.body.attendees || [],
+            reminders: req.body.reminders || { useDefault: true }
+        };
+
+        const calendarApiUrl = `https://www.googleapis.com/calendar/v3/calendars/${req.body.calendarId}/events`;
+
         const response = await fetch(calendarApiUrl, {
             method: "POST",
             headers: {
