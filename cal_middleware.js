@@ -8,17 +8,17 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-// ✅ Function to Convert `StartUse` and `EndUse` to Google-Compatible Format
-function convertToISO(dateString, timeZone) {
+// ✅ Function to Convert Alchemy's Date Format ("MMM dd yyyy hh:mm a") to ISO Format
+function convertAlchemyDate(dateString, timeZone) {
     try {
-        // ✅ Luxon auto-detects the time zone offset and converts it
-        const date = DateTime.fromISO(dateString, { zone: timeZone });
+        // ✅ Parse "Feb 25 2025 09:00 PM" using Luxon
+        const date = DateTime.fromFormat(dateString, "MMM dd yyyy hh:mm a", { zone: timeZone });
 
         if (!date.isValid) {
             throw new Error(`Invalid date format received: ${dateString}`);
         }
 
-        return date.toFormat("yyyy-MM-dd'T'HH:mm:ss"); // ✅ Converts to "2025-02-26T11:00:00"
+        return date.toISO(); // ✅ Converts to "2025-02-25T21:00:00-05:00" (ISO Format)
     } catch (error) {
         console.error("🔴 Date conversion error:", error.message);
         return null;
@@ -74,13 +74,9 @@ app.post("/create-event", async (req, res) => {
         // ✅ Use correct timezone (default to America/New_York)
         const timeZone = req.body.timeZone || "America/New_York";
 
-        // ✅ Log raw StartUse and EndUse before conversion
-        console.log("🔵 Raw StartUse from Alchemy:", req.body.StartUse);
-        console.log("🔵 Raw EndUse from Alchemy:", req.body.EndUse);
-
-        // ✅ Convert StartUse and EndUse to Google-compatible format
-        const formattedStartUse = convertToISO(req.body.StartUse, timeZone);
-        const formattedEndUse = convertToISO(req.body.EndUse, timeZone);
+        // ✅ Convert StartUse and EndUse from Alchemy's format
+        const formattedStartUse = convertAlchemyDate(req.body.StartUse, timeZone);
+        const formattedEndUse = convertAlchemyDate(req.body.EndUse, timeZone);
 
         console.log("🟢 Formatted StartUse:", formattedStartUse);
         console.log("🟢 Formatted EndUse:", formattedEndUse);
@@ -95,11 +91,11 @@ app.post("/create-event", async (req, res) => {
             location: req.body.location || "No Location Provided",
             description: req.body.description || "No Description",
             start: {
-                dateTime: formattedStartUse, // ✅ Now formatted correctly
+                dateTime: formattedStartUse, // ✅ Now correctly formatted
                 timeZone: timeZone
             },
             end: {
-                dateTime: formattedEndUse, // ✅ Now formatted correctly
+                dateTime: formattedEndUse, // ✅ Now correctly formatted
                 timeZone: timeZone
             },
             attendees: req.body.attendees || [],
