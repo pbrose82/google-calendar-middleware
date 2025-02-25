@@ -7,14 +7,21 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-// ✅ Function to Convert Date to ISO 8601 Format
+// ✅ Function to Convert Date to Correct ISO Format While Preserving Timezone
 function convertToISO(dateString) {
     try {
         const date = new Date(dateString);
         if (isNaN(date.getTime())) {
             throw new Error(`Invalid date format received: ${dateString}`);
         }
-        return date.toISOString(); // Converts to "YYYY-MM-DDTHH:MM:SS.sssZ"
+
+        // Format as "YYYY-MM-DDTHH:mm:ss-XX:XX" while preserving timezone offset
+        const offset = -date.getTimezoneOffset(); // Offset in minutes
+        const sign = offset >= 0 ? "+" : "-";
+        const hoursOffset = String(Math.floor(Math.abs(offset) / 60)).padStart(2, "0");
+        const minutesOffset = String(Math.abs(offset) % 60).padStart(2, "0");
+
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:${String(date.getSeconds()).padStart(2, "0")}${sign}${hoursOffset}:${minutesOffset}`;
     } catch (error) {
         console.error("Date conversion error:", error.message);
         return null;
@@ -65,7 +72,7 @@ app.post("/create-event", async (req, res) => {
     }
 
     try {
-        // ✅ Convert StartUse and EndUse to ISO format inside the middleware
+        // ✅ Convert StartUse and EndUse to correct format inside the middleware
         const formattedStartUse = convertToISO(req.body.StartUse);
         const formattedEndUse = convertToISO(req.body.EndUse);
 
@@ -110,12 +117,4 @@ app.post("/create-event", async (req, res) => {
         res.status(200).json({ success: true, event: data });
     } catch (error) {
         console.error("Error creating event:", error.message);
-        res.status(500).json({ error: "Failed to create event", details: error.message });
-    }
-});
-
-// ✅ Fix Port Binding for Render
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Middleware running on port ${PORT}`);
-});
+        res.status(500).json({ error: "Failed to cr
