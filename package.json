@@ -1,0 +1,20 @@
+{
+  "name": "google-calendar-middleware",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "cal_middleware.js",
+  "scripts": {
+    "start": "node cal_middleware.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "node-fetch": "^3.3.2"
+  },
+  "description": ""
+}
+
