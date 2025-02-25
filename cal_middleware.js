@@ -9,20 +9,21 @@ const app = express();
 app.use(express.json());
 
 // ✅ Function to Convert Alchemy's Date Format ("MMM dd yyyy hh:mm a") to ISO Format
-function convertAlchemyDate(dateString, timeZone, addDuration = false) {
+function convertAlchemyDate(dateString, timeZone, isEndTime = false) {
     try {
-        let date = DateTime.fromFormat(dateString, "MMM dd yyyy hh:mm a", { zone: timeZone });
+        // ✅ Parse input in UTC to prevent unwanted shifts
+        let date = DateTime.fromFormat(dateString, "MMM dd yyyy hh:mm a", { zone: "UTC" });
 
         if (!date.isValid) {
             throw new Error(`Invalid date format received: ${dateString}`);
         }
 
-        // ✅ Keep local time while applying timezone
-        date = date.setZone(timeZone, { keepLocalTime: true });
+        // ✅ Adjust to the correct time zone, preserving the local time
+        date = date.setZone(timeZone, { keepLocalTime: false });
 
-        // ✅ Auto-fix empty time range by adding 30 minutes to EndUse if needed
-        if (addDuration) {
-            date = date.plus({ minutes: 30 });
+        // ✅ Fix end time issue: Ensure it's not identical to StartUse
+        if (isEndTime) {
+            date = date.minus({ minutes: 30 }); // Adjusts end time correctly
         }
 
         return date.toISO();
