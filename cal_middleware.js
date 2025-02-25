@@ -8,20 +8,17 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-// ✅ Function to Convert Date to "yyyy-MM-dd HH:mm:ss" (Alchemy-Compatible Format)
-function convertToAlchemyFormat(dateString, timeZone) {
+// ✅ Function to Convert `StartUse` and `EndUse` to Google-Compatible Format
+function convertToISO(dateString, timeZone) {
     try {
-        // ✅ Remove 'Z' or timezone offset (-05:00) before parsing
-        let cleanDateString = dateString.replace(/Z$/, "").replace(/([-+]\d{2}:\d{2})$/, "");
-
-        // ✅ Convert input date from "MMM dd yyyy hh:mm a" (e.g., "Feb 26 2025 11:00 AM")
-        const date = DateTime.fromFormat(cleanDateString, "MMM dd yyyy hh:mm a", { zone: timeZone });
+        // ✅ Luxon auto-detects the time zone offset and converts it
+        const date = DateTime.fromISO(dateString, { zone: timeZone });
 
         if (!date.isValid) {
             throw new Error(`Invalid date format received: ${dateString}`);
         }
 
-        return date.toFormat("yyyy-MM-dd HH:mm:ss"); // ✅ Converts to "2025-02-26 11:00:00"
+        return date.toFormat("yyyy-MM-dd'T'HH:mm:ss"); // ✅ Converts to "2025-02-26T11:00:00"
     } catch (error) {
         console.error("🔴 Date conversion error:", error.message);
         return null;
@@ -81,11 +78,10 @@ app.post("/create-event", async (req, res) => {
         console.log("🔵 Raw StartUse from Alchemy:", req.body.StartUse);
         console.log("🔵 Raw EndUse from Alchemy:", req.body.EndUse);
 
-        // ✅ Convert StartUse and EndUse to Alchemy's expected format
-        const formattedStartUse = convertToAlchemyFormat(req.body.StartUse, timeZone);
-        const formattedEndUse = convertToAlchemyFormat(req.body.EndUse, timeZone);
+        // ✅ Convert StartUse and EndUse to Google-compatible format
+        const formattedStartUse = convertToISO(req.body.StartUse, timeZone);
+        const formattedEndUse = convertToISO(req.body.EndUse, timeZone);
 
-        // ✅ Log formatted dates before sending to Google Calendar
         console.log("🟢 Formatted StartUse:", formattedStartUse);
         console.log("🟢 Formatted EndUse:", formattedEndUse);
 
