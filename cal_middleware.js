@@ -7,6 +7,11 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
+// ✅ Add a simple GET route for testing
+app.get("/", (req, res) => {
+    res.json({ message: "Middleware is running!" });
+});
+
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
@@ -45,33 +50,4 @@ app.post("/create-event", async (req, res) => {
         return res.status(500).json({ error: "Failed to obtain access token" });
     }
 
-    const calendarApiUrl = `https://www.googleapis.com/calendar/v3/calendars/${req.body.calendarId}/events`;
-
-    try {
-        const response = await fetch(calendarApiUrl, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${accessToken}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(req.body)
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(`Error creating event: ${data.error}, Details: ${JSON.stringify(data)}`);
-        }
-
-        res.status(200).json({ success: true, event: data });
-    } catch (error) {
-        console.error("Error creating event:", error.message);
-        res.status(500).json({ error: "Failed to create event", details: error.message });
-    }
-});
-
-// ✅ Fix Port Binding for Render
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Middleware running on port ${PORT}`);
-});
+   
