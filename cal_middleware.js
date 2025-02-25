@@ -7,6 +7,12 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
+// ✅ Function to convert date format to ISO 8601
+function convertToISO(dateString) {
+    const date = new Date(dateString);
+    return date.toISOString(); // Converts to "YYYY-MM-DDTHH:MM:SS.sssZ" format
+}
+
 // ✅ Health Check Route
 app.get("/", (req, res) => {
     res.json({ message: "Middleware is running!" });
@@ -36,7 +42,7 @@ async function getAccessToken() {
             throw new Error(`Error: ${data.error}, Details: ${JSON.stringify(data)}`);
         }
 
-        return data.access_token;  // ✅ Returns the new access token
+        return data.access_token;
     } catch (error) {
         console.error("Error refreshing token:", error.message);
         return null;
@@ -50,6 +56,24 @@ app.post("/create-event", async (req, res) => {
         return res.status(500).json({ error: "Failed to obtain access token" });
     }
 
+    // ✅ Use StartUse and EndUse instead of start.dateTime and end.dateTime
+    const eventBody = {
+        calendarId: req.body.calendarId,
+        summary: req.body.summary,
+        location: req.body.location,
+        description: req.body.description,
+        start: {
+            dateTime: convertToISO(req.body.StartUse), // ✅ Convert StartUse to ISO format
+            timeZone: req.body.timeZone || "America/New_York" // ✅ Default to NY timezone
+        },
+        end: {
+            dateTime: convertToISO(req.body.EndUse), // ✅ Convert EndUse to ISO format
+            timeZone: req.body.timeZone || "America/New_York"
+        },
+        attendees: req.body.attendees,
+        reminders: req.body.reminders
+    };
+
     const calendarApiUrl = `https://www.googleapis.com/calendar/v3/calendars/${req.body.calendarId}/events`;
 
     try {
@@ -59,7 +83,7 @@ app.post("/create-event", async (req, res) => {
                 "Authorization": `Bearer ${accessToken}`,
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify(req.body)
+            body: JSON.stringify(eventBody)
         });
 
         const data = await response.json();
