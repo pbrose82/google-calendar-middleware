@@ -9,11 +9,16 @@ app.use(express.json());
 
 // ✅ Function to Convert Date to ISO 8601 Format
 function convertToISO(dateString) {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) {
-        throw new Error(`Invalid date format: ${dateString}`);
+    try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) {
+            throw new Error(`Invalid date format received: ${dateString}`);
+        }
+        return date.toISOString(); // Converts to "YYYY-MM-DDTHH:MM:SS.sssZ"
+    } catch (error) {
+        console.error("Date conversion error:", error.message);
+        return null;
     }
-    return date.toISOString(); // Converts to "YYYY-MM-DDTHH:MM:SS.sssZ"
 }
 
 // ✅ Health Check Route
@@ -63,6 +68,10 @@ app.post("/create-event", async (req, res) => {
         // ✅ Convert StartUse and EndUse to ISO format inside the middleware
         const formattedStartUse = convertToISO(req.body.StartUse);
         const formattedEndUse = convertToISO(req.body.EndUse);
+
+        if (!formattedStartUse || !formattedEndUse) {
+            return res.status(400).json({ error: "Invalid date format for StartUse or EndUse" });
+        }
 
         const eventBody = {
             calendarId: req.body.calendarId,
