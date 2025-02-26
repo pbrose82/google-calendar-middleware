@@ -10,7 +10,7 @@ app.use(express.json());
 
 const ALCHEMY_REFRESH_TOKEN = process.env.ALCHEMY_REFRESH_TOKEN;
 const ALCHEMY_BASE_URL = "https://core-production.alchemy.cloud/core/api/v2";
-const TENANT_NAME = "productcaseelnandlimsuat"; // ✅ Correct tenant
+const TENANT_NAME = "productcaseelnlims4uat"; // ✅ Correct tenant
 
 let currentAlchemyToken = null; // ✅ Store valid token
 
