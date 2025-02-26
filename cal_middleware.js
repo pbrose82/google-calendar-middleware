@@ -1,7 +1,7 @@
 import express from "express";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
-import { DateTime } from "luxon"; // ✅ Import Luxon for precise date formatting
+import { DateTime } from "luxon"; 
 
 dotenv.config();
 
@@ -10,6 +10,7 @@ app.use(express.json());
 
 // ✅ Health Check Route
 app.get("/health", (req, res) => {
+    console.log("✅ Health check hit!");
     res.status(200).json({ status: "Middleware is running fine" });
 });
 
@@ -37,8 +38,10 @@ const TENANT_NAME = "productcaseelnlims4uat"; // ✅ Ensure correct tenant
 // ✅ Function to Refresh Alchemy Token
 async function refreshAlchemyToken() {
     try {
+        console.log("🔄 Refreshing Alchemy Token...");
+
         const response = await fetch(ALCHEMY_REFRESH_URL, {
-            method: "PUT", // ✅ Correct method
+            method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ refreshToken: ALCHEMY_REFRESH_TOKEN })
         });
@@ -56,7 +59,7 @@ async function refreshAlchemyToken() {
             throw new Error(`Tenant '${TENANT_NAME}' not found in response.`);
         }
 
-        console.log("✅ Alchemy Token Refreshed Successfully");
+        console.log("✅ Alchemy Token Refreshed Successfully:", tenantToken.accessToken.substring(0, 10) + "... (truncated)");
         return tenantToken.accessToken;
     } catch (error) {
         console.error("🔴 Error refreshing Alchemy token:", error.message);
@@ -66,16 +69,17 @@ async function refreshAlchemyToken() {
 
 // ✅ Route to Handle Google Calendar Updates & Push to Alchemy
 app.put("/update-alchemy", async (req, res) => {
-    console.log("Received Google Calendar Update:", JSON.stringify(req.body, null, 2));
+    console.log("📩 Received Google Calendar Update:", JSON.stringify(req.body, null, 2));
 
     if (!req.body || !req.body.id || !req.body.start || !req.body.end) {
+        console.error("❌ Invalid request data from Google Calendar:", JSON.stringify(req.body, null, 2));
         return res.status(400).json({ error: "Invalid request data" });
     }
 
     // Extract Record ID from the event description
     const recordIdMatch = req.body.description.match(/\b\d+\b/);
     if (!recordIdMatch) {
-        console.error("No Record ID found in event description:", req.body.description);
+        console.error("❌ No Record ID found in event description:", req.body.description);
         return res.status(400).json({ error: "Record ID not found in event description" });
     }
 
@@ -109,9 +113,11 @@ app.put("/update-alchemy", async (req, res) => {
         ]
     };
 
+    console.log("📤 Sending Alchemy Update Request:", JSON.stringify(alchemyPayload, null, 2));
+
     try {
         const alchemyResponse = await fetch(ALCHEMY_UPDATE_URL, {
-            method: "PUT", // ✅ Correct method for updating records
+            method: "PUT",
             headers: {
                 "Authorization": `Bearer ${alchemyToken}`,
                 "Content-Type": "application/json"
@@ -119,14 +125,15 @@ app.put("/update-alchemy", async (req, res) => {
             body: JSON.stringify(alchemyPayload)
         });
 
-        const data = await alchemyResponse.json();
+        const responseText = await alchemyResponse.text();
+        console.log("🔍 Alchemy API Response Status:", alchemyResponse.status);
+        console.log("🔍 Alchemy API Raw Response:", responseText);
 
         if (!alchemyResponse.ok) {
-            throw new Error(`Alchemy API Error: ${JSON.stringify(data)}`);
+            throw new Error(`Alchemy API Error: ${responseText}`);
         }
 
-        console.log("✅ Successfully updated Alchemy Record:", data);
-        res.status(200).json({ success: true, message: "Alchemy record updated", data });
+        res.status(200).json({ success: true, message: "Alchemy record updated", data: responseText });
     } catch (error) {
         console.error("🔴 Error updating Alchemy record:", error.message);
         res.status(500).json({ error: "Failed to update Alchemy", details: error.message });
@@ -136,5 +143,6 @@ app.put("/update-alchemy", async (req, res) => {
 // ✅ Fix Port Binding for Render
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => {
-    console.log(`✅ Middleware running on port ${PORT}`);
+    console.log(`🚀 Middleware running on port ${PORT}`);
 });
+
