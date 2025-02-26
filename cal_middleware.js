@@ -1,27 +1,28 @@
 import express from "express";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
-import { DateTime } from "luxon"; // ✅ Import Luxon for date handling
+import { DateTime } from "luxon"; // ✅ Import Luxon for precise date formatting
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
 
-// ✅ Health Check Route (Ensures Render stays active)
+// ✅ Health Check Route
 app.get("/health", (req, res) => {
     res.status(200).json({ status: "Middleware is running fine" });
 });
 
-// ✅ Function to Convert Google Calendar Date Format to Alchemy Expected Format
+// ✅ Function to Convert Date to Alchemy Format (UTC)
 function convertToAlchemyFormat(dateString) {
     try {
         let date = DateTime.fromISO(dateString, { zone: "UTC" });
+
         if (!date.isValid) {
             throw new Error(`Invalid date format received: ${dateString}`);
         }
 
-        return date.toFormat("yyyy-MM-dd'T'HH:mm:ss'Z'"); // ✅ Correct Alchemy format
+        return date.toUTC().toFormat("yyyy-MM-dd'T'HH:mm:ss'Z'"); // ✅ Enforces UTC format
     } catch (error) {
         console.error("Date conversion error:", error.message);
         return null;
@@ -37,7 +38,7 @@ const TENANT_NAME = "productcaseelnlims4uat"; // ✅ Ensure correct tenant
 async function refreshAlchemyToken() {
     try {
         const response = await fetch(ALCHEMY_REFRESH_URL, {
-            method: "PUT", // ✅ Correct method for refreshing token
+            method: "PUT", // ✅ Correct method
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ refreshToken: ALCHEMY_REFRESH_TOKEN })
         });
@@ -80,7 +81,7 @@ app.put("/update-alchemy", async (req, res) => {
 
     const recordId = recordIdMatch[0];
 
-    // Convert Google Calendar timestamps to Alchemy format
+    // Convert Google Calendar timestamps to Alchemy format (UTC enforced)
     const formattedStart = convertToAlchemyFormat(req.body.start.dateTime);
     const formattedEnd = convertToAlchemyFormat(req.body.end.dateTime);
 
