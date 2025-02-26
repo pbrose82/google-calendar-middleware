@@ -1,14 +1,14 @@
 import express from "express";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
-import { DateTime } from "luxon"; // ✅ Import Luxon for date handling
+import { DateTime } from "luxon";
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
 
-// ✅ Health Check Route (Ensures Render stays active)
+// ✅ Health Check Route
 app.get("/health", (req, res) => {
     res.status(200).json({ status: "Middleware is running fine" });
 });
@@ -31,16 +31,21 @@ function convertAlchemyDate(dateString, timeZone) {
     }
 }
 
+// ✅ Google API Tokens
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
-const ALCHEMY_AUTH_TOKEN = process.env.ALCHEMY_AUTH_TOKEN;
-const TOKEN_URL = "https://oauth2.googleapis.com/token";
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 
-// ✅ Function to refresh the Google API access token
-async function getAccessToken() {
+// ✅ Alchemy API Tokens
+const ALCHEMY_REFRESH_TOKEN = process.env.ALCHEMY_REFRESH_TOKEN;
+const ALCHEMY_AUTH_URL = "https://core-production.alchemy.cloud/core/api/v2/refresh-token";
+const ALCHEMY_UPDATE_URL = "https://core-production.alchemy.cloud/core/api/v2/update-record";
+
+// ✅ Function to Refresh Google API Access Token
+async function getGoogleAccessToken() {
     try {
-        const response = await fetch(TOKEN_URL, {
+        const response = await fetch(GOOGLE_TOKEN_URL, {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: new URLSearchParams({
@@ -58,7 +63,30 @@ async function getAccessToken() {
 
         return data.access_token;
     } catch (error) {
-        console.error("Error refreshing token:", error.message);
+        console.error("Error refreshing Google token:", error.message);
+        return null;
+    }
+}
+
+// ✅ Function to Refresh Alchemy API Access Token
+async function getAlchemyAccessToken() {
+    try {
+        const response = await fetch(ALCHEMY_AUTH_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken: ALCHEMY_REFRESH_TOKEN }) // Send refresh token
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(`Alchemy Token Refresh Failed: ${data.message}`);
+        }
+
+        console.log("✅ Alchemy Token Refreshed Successfully");
+        return data.token;
+    } catch (error) {
+        console.error("Error refreshing Alchemy token:", error.message);
         return null;
     }
 }
@@ -67,7 +95,7 @@ async function getAccessToken() {
 app.post("/create-event", async (req, res) => {
     console.log("Received request from Alchemy:", JSON.stringify(req.body, null, 2));
 
-    const accessToken = await getAccessToken();
+    const accessToken = await getGoogleAccessToken();
     if (!accessToken) {
         return res.status(500).json({ error: "Failed to obtain access token" });
     }
@@ -132,7 +160,7 @@ app.post("/create-event", async (req, res) => {
     }
 });
 
-// ✅ Route to Handle Google Calendar Updates & Push to Alchemy
+// ✅ Route to Update Alchemy from Google Calendar Changes
 app.post("/update-alchemy", async (req, res) => {
     console.log("Received Google Calendar Update:", JSON.stringify(req.body, null, 2));
 
@@ -155,27 +183,26 @@ app.post("/update-alchemy", async (req, res) => {
     const formattedEnd = DateTime.fromISO(req.body.end.dateTime, { zone: req.body.end.timeZone })
         .toFormat("MMM dd yyyy hh:mm a");
 
-    const alchemyApiUrl = "https://core-production.alchemy.cloud/core/api/v2/update-record";
-
     const alchemyPayload = {
         recordId: recordId,
         fields: [
-            {
-                identifier: "StartUse",
-                rows: [{ row: 0, values: [{ value: formattedStart }] }]
-            },
-            {
-                identifier: "EndUse",
-                rows: [{ row: 0, values: [{ value: formattedEnd }] }]
-            }
+            { identifier: "StartUse", rows: [{ row: 0, values: [{ value: formattedStart }] }] },
+            { identifier: "EndUse", rows: [{ row: 0, values: [{ value: formattedEnd }] }] }
         ]
     };
 
     try {
-        const alchemyResponse = await fetch(alchemyApiUrl, {
+        // ✅ Refresh Alchemy Token
+        const updatedAlchemyToken = await getAlchemyAccessToken();
+
+        if (!updatedAlchemyToken) {
+            return res.status(500).json({ error: "Failed to refresh Alchemy token" });
+        }
+
+        const alchemyResponse = await fetch(ALCHEMY_UPDATE_URL, {
             method: "POST",
             headers: {
-                "Authorization": `Bearer ${ALCHEMY_AUTH_TOKEN}`,
+                "Authorization": `Bearer ${updatedAlchemyToken}`,
                 "Content-Type": "application/json"
             },
             body: JSON.stringify(alchemyPayload)
@@ -187,7 +214,7 @@ app.post("/update-alchemy", async (req, res) => {
             throw new Error(`Alchemy API Error: ${JSON.stringify(data)}`);
         }
 
-        console.log("Successfully updated Alchemy Record:", data);
+        console.log("✅ Successfully updated Alchemy Record:", data);
         res.status(200).json({ success: true, message: "Alchemy record updated", data });
     } catch (error) {
         console.error("Error updating Alchemy record:", error.message);
