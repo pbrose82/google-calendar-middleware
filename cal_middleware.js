@@ -1,133 +1,138 @@
 import express from "express";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
-import cron from "node-cron";
+import { DateTime } from "luxon"; // ✅ Import Luxon for date handling
 
-dotenv.config(); // Load environment variables
+dotenv.config();
 
 const app = express();
 app.use(express.json());
 
-const TOKEN_URL = "https://oauth2.googleapis.com/token";
-const ALCHEMY_URL = process.env.ALCHEMY_API_URL; // Replace with actual Alchemy API endpoint
-const GOOGLE_CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID;
+// ✅ Health Check Route (Step 2: Ensure Render stays active)
+app.get("/health", (req, res) => {
+    res.status(200).json({ status: "🟢 Middleware is running fine" });
+});
 
-// ✅ Auto-Refresh Access Token
+// ✅ Function to Convert Alchemy's Date Format ("MMM dd yyyy hh:mm a") to ISO Format
+function convertAlchemyDate(dateString, timeZone) {
+    try {
+        let date = DateTime.fromFormat(dateString, "MMM dd yyyy hh:mm a", { zone: "UTC" });
+
+        if (!date.isValid) {
+            throw new Error(`Invalid date format received: ${dateString}`);
+        }
+
+        date = date.setZone(timeZone, { keepLocalTime: false });
+
+        return date.toISO();
+    } catch (error) {
+        console.error("🔴 Date conversion error:", error.message);
+        return null;
+    }
+}
+
+const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
+const TOKEN_URL = "https://oauth2.googleapis.com/token";
+
+// ✅ Function to refresh the access token
 async function getAccessToken() {
     try {
         const response = await fetch(TOKEN_URL, {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: new URLSearchParams({
-                client_id: process.env.GOOGLE_CLIENT_ID,
-                client_secret: process.env.GOOGLE_CLIENT_SECRET,
-                refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+                client_id: CLIENT_ID,
+                client_secret: CLIENT_SECRET,
+                refresh_token: REFRESH_TOKEN,
                 grant_type: "refresh_token"
             })
         });
 
         const data = await response.json();
         if (!response.ok) {
-            throw new Error(`Error refreshing token: ${data.error}`);
+            throw new Error(`Error: ${data.error}, Details: ${JSON.stringify(data)}`);
         }
 
-        process.env.GOOGLE_ACCESS_TOKEN = data.access_token; // Store in memory
         return data.access_token;
     } catch (error) {
-        console.error("🚨 Failed to refresh access token:", error.message);
+        console.error("🔴 Error refreshing token:", error.message);
         return null;
     }
 }
 
-// ✅ Google Calendar Webhook - Handle Event Updates
-app.post("/calendar-webhook", async (req, res) => {
-    console.log("📡 Received Calendar Update:", JSON.stringify(req.body, null, 2));
+// ✅ Google Calendar Event Creation Endpoint
+app.post("/create-event", async (req, res) => {
+    console.log("🔵 Received request from Alchemy:", JSON.stringify(req.body, null, 2));
 
-    const eventId = req.body.id;
-    const status = req.body.status; // Check if it's cancelled
-    const startTime = req.body.start?.dateTime;
-    const endTime = req.body.end?.dateTime;
-
-    if (!eventId) {
-        console.error("❌ Missing Event ID.");
-        return res.status(400).json({ error: "Missing Event ID" });
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+        return res.status(500).json({ error: "Failed to obtain access token" });
     }
-
-    // ✅ If event was deleted
-    if (status === "cancelled") {
-        console.log(`❌ Event ${eventId} was cancelled.`);
-        await sendUpdateToAlchemy(eventId, "cancelled", null, null);
-        return res.sendStatus(200);
-    }
-
-    // ✅ If event was moved
-    if (startTime && endTime) {
-        console.log(`📅 Event ${eventId} moved to: ${startTime} - ${endTime}`);
-        await sendUpdateToAlchemy(eventId, "moved", startTime, endTime);
-    }
-
-    res.sendStatus(200);
-});
-
-// ✅ Send Update to Alchemy
-async function sendUpdateToAlchemy(eventId, action, newStart, newEnd) {
-    const payload = {
-        eventId: eventId,
-        action: action,
-        newStart: newStart,
-        newEnd: newEnd
-    };
-
-    console.log("📤 Sending Update to Alchemy:", JSON.stringify(payload, null, 2));
 
     try {
-        const response = await fetch(ALCHEMY_URL, {
+        const timeZone = req.body.timeZone || "America/New_York";
+
+        // ✅ Convert StartUse and EndUse
+        const formattedStartUse = convertAlchemyDate(req.body.StartUse, timeZone);
+        let formattedEndUse = convertAlchemyDate(req.body.EndUse, timeZone);
+
+        // ✅ Ensure EndUse is later than StartUse
+        if (formattedEndUse <= formattedStartUse) {
+            console.log("🟠 EndUse is invalid, adjusting to +1 hour...");
+            formattedEndUse = DateTime.fromISO(formattedStartUse).plus({ hours: 1 }).toISO();
+        }
+
+        const eventBody = {
+            calendarId: req.body.calendarId,
+            summary: req.body.summary || "Default Event Name",
+            location: req.body.location || "No Location Provided",
+            description: req.body.description || "No Description",
+            start: {
+                dateTime: formattedStartUse,
+                timeZone: timeZone
+            },
+            end: {
+                dateTime: formattedEndUse,
+                timeZone: timeZone
+            },
+            reminders: req.body.reminders || { useDefault: true }
+        };
+
+        // ✅ Only include attendees if they exist
+        if (req.body.attendees && req.body.attendees.length > 0) {
+            eventBody.attendees = req.body.attendees;
+        }
+
+        console.log("🟢 Final Event Payload:", JSON.stringify(eventBody, null, 2));
+
+        const calendarApiUrl = `https://www.googleapis.com/calendar/v3/calendars/${req.body.calendarId}/events`;
+
+        const response = await fetch(calendarApiUrl, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
+            headers: {
+                "Authorization": `Bearer ${accessToken}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(eventBody)
         });
 
+        const data = await response.json();
+
         if (!response.ok) {
-            console.error("❌ Error sending update to Alchemy:", await response.text());
-        } else {
-            console.log("✅ Successfully updated Alchemy.");
+            throw new Error(`Error creating event: ${data.error}, Details: ${JSON.stringify(data)}`);
         }
+
+        res.status(200).json({ success: true, event: data });
     } catch (error) {
-        console.error("🚨 Failed to connect to Alchemy:", error.message);
+        console.error("🔴 Error creating event:", error.message);
+        res.status(500).json({ error: "Failed to create event", details: error.message });
     }
-}
-
-// ✅ Auto-Renew Google Webhook Every 23 Hours
-async function refreshWebhook() {
-    console.log("🔄 Refreshing Google Calendar Webhook...");
-
-    const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${GOOGLE_CALENDAR_ID}/events/watch`, {
-        method: "POST",
-        headers: { 
-            "Authorization": `Bearer ${process.env.GOOGLE_ACCESS_TOKEN}`, 
-            "Content-Type": "application/json" 
-        },
-        body: JSON.stringify({
-            id: "alchemy-channel-123",
-            type: "web_hook",
-            address: "https://google-calendar-middleware.onrender.com/calendar-webhook",
-            params: { ttl: "86400" }
-        })
-    });
-
-    if (response.ok) {
-        console.log("✅ Webhook successfully refreshed.");
-    } else {
-        console.error("❌ Failed to refresh webhook:", await response.text());
-    }
-}
-
-// ✅ Schedule webhook refresh every 23 hours
-cron.schedule("0 */23 * * *", refreshWebhook);
-
-// ✅ Start Express Server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`📡 Middleware running on port ${PORT}`);
 });
 
+// ✅ Fix Port Binding for Render
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, "0.0.0.0", () => {
+    console.log(`✅ Middleware running on port ${PORT}`);
+});
