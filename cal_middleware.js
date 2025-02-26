@@ -1,38 +1,35 @@
 import express from "express";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
-import { DateTime } from "luxon"; // ✅ Import Luxon for time handling
+import { DateTime } from "luxon"; // ✅ Import Luxon for date handling
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
 
+// ✅ Health Check Route (Step 2: Ensure Render stays active)
+app.get("/health", (req, res) => {
+    res.status(200).json({ status: "🟢 Middleware is running fine" });
+});
+
 // ✅ Function to Convert Alchemy's Date Format ("MMM dd yyyy hh:mm a") to ISO Format
-function convertAlchemyDate(dateString, timeZone, isEndTime = false) {
+function convertAlchemyDate(dateString, timeZone) {
     try {
-        // ✅ Parse input in UTC to prevent unwanted shifts
         let date = DateTime.fromFormat(dateString, "MMM dd yyyy hh:mm a", { zone: "UTC" });
 
         if (!date.isValid) {
             throw new Error(`Invalid date format received: ${dateString}`);
         }
 
-        // ✅ Adjust to the correct time zone, preserving the local time
         date = date.setZone(timeZone, { keepLocalTime: false });
 
-        
         return date.toISO();
     } catch (error) {
         console.error("🔴 Date conversion error:", error.message);
         return null;
     }
 }
-
-// ✅ Health Check Route
-app.get("/", (req, res) => {
-    res.json({ message: "Middleware is running!" });
-});
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -79,12 +76,12 @@ app.post("/create-event", async (req, res) => {
 
         // ✅ Convert StartUse and EndUse
         const formattedStartUse = convertAlchemyDate(req.body.StartUse, timeZone);
-        let formattedEndUse = convertAlchemyDate(req.body.EndUse, timeZone, true);
+        let formattedEndUse = convertAlchemyDate(req.body.EndUse, timeZone);
 
         // ✅ Ensure EndUse is later than StartUse
         if (formattedEndUse <= formattedStartUse) {
-            console.log("🟠 EndUse is invalid, adjusting to +30 minutes...");
-            formattedEndUse = DateTime.fromISO(formattedStartUse).plus({ minutes: 30 }).toISO();
+            console.log("🟠 EndUse is invalid, adjusting to +1 hour...");
+            formattedEndUse = DateTime.fromISO(formattedStartUse).plus({ hours: 1 }).toISO();
         }
 
         const eventBody = {
@@ -100,9 +97,13 @@ app.post("/create-event", async (req, res) => {
                 dateTime: formattedEndUse,
                 timeZone: timeZone
             },
-            attendees: req.body.attendees || [],
             reminders: req.body.reminders || { useDefault: true }
         };
+
+        // ✅ Only include attendees if they exist
+        if (req.body.attendees && req.body.attendees.length > 0) {
+            eventBody.attendees = req.body.attendees;
+        }
 
         console.log("🟢 Final Event Payload:", JSON.stringify(eventBody, null, 2));
 
