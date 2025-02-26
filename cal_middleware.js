@@ -10,9 +10,9 @@ app.use(express.json());
 
 const ALCHEMY_REFRESH_TOKEN = process.env.ALCHEMY_REFRESH_TOKEN;
 const ALCHEMY_BASE_URL = "https://core-production.alchemy.cloud/core/api/v2";
-const TENANT_NAME = "productcaseelnlims4uat"; // ✅ The correct tenant to extract tokens from
+const TENANT_NAME = "productcaseelnandlimsuat"; // ✅ Correct tenant
 
-let currentAlchemyToken = null; // ✅ Stores latest valid token
+let currentAlchemyToken = null; // ✅ Store valid token
 
 // ✅ Function to Refresh Alchemy Token & Extract Correct Tenant Token
 async function refreshAlchemyToken() {
@@ -20,7 +20,7 @@ async function refreshAlchemyToken() {
         console.log("🔄 Refreshing Alchemy token...");
 
         const response = await fetch(`${ALCHEMY_BASE_URL}/refresh-token`, {
-            method: "PUT",
+            method: "PUT", // ✅ Corrected from POST to PUT
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ refreshToken: ALCHEMY_REFRESH_TOKEN }),
         });
@@ -40,7 +40,7 @@ async function refreshAlchemyToken() {
             throw new Error(`Tenant '${TENANT_NAME}' not found in token response!`);
         }
 
-        currentAlchemyToken = tenantToken.accessToken; // ✅ Store the correct tenant token
+        currentAlchemyToken = tenantToken.accessToken; // ✅ Store correct token
         console.log(`✅ Using Token for Tenant: ${TENANT_NAME}`);
     } catch (error) {
         console.error("❌ Error refreshing Alchemy token:", error.message);
@@ -56,7 +56,7 @@ async function ensureAlchemyToken() {
 }
 
 // ✅ Route to Handle Google Calendar Updates & Push to Alchemy
-app.post("/update-alchemy", async (req, res) => {
+app.put("/update-alchemy", async (req, res) => {
     console.log("📥 Received Google Calendar Update:", JSON.stringify(req.body, null, 2));
 
     if (!req.body || !req.body.id || !req.body.start || !req.body.end) {
@@ -105,7 +105,7 @@ app.post("/update-alchemy", async (req, res) => {
         console.log("🔄 Sending update to Alchemy:", JSON.stringify(alchemyPayload, null, 2));
 
         const alchemyResponse = await fetch(alchemyApiUrl, {
-            method: "POST",
+            method: "PUT", // ✅ Changed to PUT
             headers: {
                 "Authorization": `Bearer ${currentAlchemyToken}`,
                 "Content-Type": "application/json"
