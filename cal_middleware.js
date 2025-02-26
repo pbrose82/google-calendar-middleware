@@ -68,11 +68,11 @@ async function getGoogleAccessToken() {
     }
 }
 
-// ✅ Function to Refresh Alchemy API Access Token
+// ✅ Function to Refresh Alchemy API Access Token (Now using PUT)
 async function getAlchemyAccessToken() {
     try {
         const response = await fetch(ALCHEMY_AUTH_URL, {
-            method: "POST",
+            method: "PUT", // ✅ Corrected to use PUT instead of POST
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ refreshToken: ALCHEMY_REFRESH_TOKEN }) // Send refresh token
         });
